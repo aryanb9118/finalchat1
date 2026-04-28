@@ -11,11 +11,17 @@ app.use(cors());
 app.use(express.json());
 
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+
+// ✅ SOCKET CORS FIX
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
 
 // ================= DATABASE =================
-// ⚠️ Replace YOUR_PASSWORD
-mongoose.connect("mongodb+srv://nutrifit-ai:Aryanil15@chatcluster.pg3snzd.mongodb.net/chat?retryWrites=true&w=majority")
+mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB Connected"))
   .catch(err => console.log("DB Error:", err));
 
@@ -28,7 +34,7 @@ const User = mongoose.model("User", {
 
 // ================= VARIABLES =================
 const users = {};
-const SECRET = "secret123";
+const SECRET = process.env.JWT_SECRET || "fallback_secret";
 
 // ================= SIGNUP =================
 app.post("/signup", async (req, res) => {
@@ -67,12 +73,8 @@ app.post("/login", async (req, res) => {
     const ok = await bcrypt.compare(password, user.password);
     if (!ok) return res.status(400).json({ msg: "Wrong password" });
 
-    // 🔥 FIX: always include valid name
     const token = jwt.sign(
-      {
-        id: user._id,
-        name: user.name || user.email
-      },
+      { id: user._id, name: user.name || user.email },
       SECRET
     );
 
@@ -92,56 +94,41 @@ app.post("/login", async (req, res) => {
 io.use((socket, next) => {
   const token = socket.handshake.auth?.token;
 
-  if (!token) {
-    console.log("❌ No token");
-    return next(new Error("No token"));
-  }
+  if (!token) return next(new Error("No token"));
 
   try {
     const decoded = jwt.verify(token, SECRET);
     socket.user = decoded;
     next();
-  } catch (err) {
-    console.log("❌ JWT ERROR:", err.message);
+  } catch {
     next(new Error("Invalid token"));
   }
 });
 
 // ================= SOCKET =================
 io.on("connection", (socket) => {
-  if (!socket.user) {
-    console.log("❌ Unauthorized connection");
-    return;
-  }
-
   const userId = socket.user.id;
   const name = socket.user.name;
 
-  console.log("✅ Connected:", { userId, name });
+  console.log("Connected:", name);
 
   users[userId] = { socketId: socket.id, name };
   socket.userId = userId;
 
-  // send all users
   io.emit("userList", users);
 
-  // manual fetch
   socket.on("getUsers", () => {
     socket.emit("userList", users);
   });
 
-  // send message
   socket.on("sendMessage", (data) => {
     const receiver = users[data.receiverId];
 
-    // sender
     io.to(socket.id).emit("receiveMessage", data);
 
     if (receiver) {
-      // receiver
       io.to(receiver.socketId).emit("receiveMessage", data);
 
-      // delivered tick
       io.to(socket.id).emit("messageStatus", {
         id: data.id,
         status: "delivered"
@@ -149,15 +136,15 @@ io.on("connection", (socket) => {
     }
   });
 
-  // disconnect
   socket.on("disconnect", () => {
     delete users[socket.userId];
     io.emit("userList", users);
-    console.log("❌ Disconnected:", name);
   });
 });
 
 // ================= START =================
-server.listen(5000, () => {
-  console.log("Server running on http://localhost:5000");
+const PORT = process.env.PORT || 5000;
+
+server.listen(PORT, () => {
+  console.log("Server running on port " + PORT);
 });

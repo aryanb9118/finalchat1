@@ -4,6 +4,8 @@ let myId = null;
 let myName = null;
 let currentReceiver = null;
 
+const BASE = "https://finalchat-backend.onrender.com"; // 🔥 YOUR BACKEND URL
+
 const chats = {};
 let usersMap = {};
 
@@ -14,13 +16,13 @@ const header = document.getElementById("header");
 
 // -------- SIGNUP --------
 async function signup() {
-  const res = await fetch("http://localhost:5000/signup", {
+  const res = await fetch(`${BASE}/signup`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      name: name.value,
-      email: email.value,
-      password: password.value
+      name: document.getElementById("name").value,
+      email: document.getElementById("email").value,
+      password: document.getElementById("password").value
     })
   });
 
@@ -30,12 +32,12 @@ async function signup() {
 
 // -------- LOGIN --------
 async function login() {
-  const res = await fetch("http://localhost:5000/login", {
+  const res = await fetch(`${BASE}/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      email: email.value,
-      password: password.value
+      email: document.getElementById("email").value,
+      password: document.getElementById("password").value
     })
   });
 
@@ -49,18 +51,17 @@ async function login() {
   myName = data.name;
   myId = data.userId;
 
-  // ✅ show username in browser tab
   document.title = myName + " - Chat";
 
-  socket = io("http://localhost:5000", {
+  socket = io(BASE, {
     auth: { token: data.token },
     transports: ["websocket"]
   });
 
   setupSocket();
 
-  auth.style.display = "none";
-  app.style.display = "flex";
+  document.getElementById("auth").style.display = "none";
+  document.getElementById("app").style.display = "flex";
 }
 
 // -------- SOCKET --------
