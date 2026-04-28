@@ -1,0 +1,165 @@
+let socket;
+
+let myId = null;
+let myName = null;
+let currentReceiver = null;
+
+const chats = {};
+let usersMap = {};
+
+const chat = document.getElementById("chat");
+const usersDiv = document.getElementById("users");
+const input = document.getElementById("msg");
+const header = document.getElementById("header");
+
+// -------- SIGNUP --------
+async function signup() {
+  const res = await fetch("http://localhost:5000/signup", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: name.value,
+      email: email.value,
+      password: password.value
+    })
+  });
+
+  const data = await res.json();
+  alert(data.msg || "Signup done");
+}
+
+// -------- LOGIN --------
+async function login() {
+  const res = await fetch("http://localhost:5000/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      email: email.value,
+      password: password.value
+    })
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    alert(data.msg || "Login failed");
+    return;
+  }
+
+  myName = data.name;
+  myId = data.userId;
+
+  // ✅ show username in browser tab
+  document.title = myName + " - Chat";
+
+  socket = io("http://localhost:5000", {
+    auth: { token: data.token },
+    transports: ["websocket"]
+  });
+
+  setupSocket();
+
+  auth.style.display = "none";
+  app.style.display = "flex";
+}
+
+// -------- SOCKET --------
+function setupSocket() {
+
+  socket.on("connect", () => {
+    socket.emit("getUsers");
+  });
+
+  socket.on("userList", (users) => {
+    usersMap = users;
+    usersDiv.innerHTML = "";
+
+    for (let id in users) {
+      if (id === myId) continue;
+
+      const div = document.createElement("div");
+      div.className = "user";
+
+      const avatar = document.createElement("div");
+      avatar.className = "avatar";
+      avatar.innerText = users[id].name[0].toUpperCase();
+
+      const nameDiv = document.createElement("div");
+      nameDiv.innerText = users[id].name;
+
+      div.appendChild(avatar);
+      div.appendChild(nameDiv);
+
+      div.onclick = () => {
+        currentReceiver = id;
+        header.innerText = users[id].name;
+        chat.innerHTML = "";
+
+        (chats[id] || []).forEach(renderMessage);
+      };
+
+      usersDiv.appendChild(div);
+    }
+  });
+
+  socket.on("receiveMessage", (data) => {
+    addMessage(data);
+  });
+}
+
+// -------- SEND --------
+function send() {
+  if (!input.value.trim() || !currentReceiver) return;
+
+  const message = {
+    id: Date.now(),
+    senderId: myId,
+    receiverId: currentReceiver,
+    text: input.value,
+    time: new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit"
+    })
+  };
+
+  socket.emit("sendMessage", message);
+  input.value = "";
+}
+
+// -------- STORE --------
+function addMessage(m) {
+  const other =
+    m.senderId === myId ? m.receiverId : m.senderId;
+
+  if (!chats[other]) chats[other] = [];
+  chats[other].push(m);
+
+  if (currentReceiver === other) {
+    renderMessage(m);
+  }
+}
+
+// -------- RENDER --------
+function renderMessage(m) {
+  if (document.getElementById(m.id)) return;
+
+  const div = document.createElement("div");
+  div.id = m.id;
+  div.className = "msg " + (m.senderId === myId ? "sent" : "received");
+
+  div.innerHTML = `
+    <div>${m.text}</div>
+    <div class="time">${m.time}</div>
+  `;
+
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+// ENTER SEND
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    send();
+  }
+});

@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Chat App</title>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <script defer src="script.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial;
+      background: #111b21;
+    }
+
+    .container {
+      display: flex;
+      height: 100vh;
+    }
+
+    .sidebar {
+      width: 30%;
+      background: #202c33;
+      color: white;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar-header {
+      padding: 15px;
+      border-bottom: 1px solid #2a3942;
+      font-weight: bold;
+    }
+
+    .users {
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .user {
+      display: flex;
+      align-items: center;
+      padding: 12px;
+      cursor: pointer;
+      border-bottom: 1px solid #2a3942;
+    }
+
+    .user:hover {
+      background: #2a3942;
+    }
+
+    .avatar {
+      width: 40px;
+      height: 40px;
+      background: #00a884;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 10px;
+      font-weight: bold;
+    }
+
+    .chat-area {
+      width: 70%;
+      display: flex;
+      flex-direction: column;
+      background: #efeae2;
+    }
+
+    .chat-header {
+      padding: 15px;
+      background: #202c33;
+      color: white;
+      border-bottom: 1px solid #2a3942;
+    }
+
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 15px;
+    }
+
+    .msg {
+      max-width: 60%;
+      padding: 8px 12px;
+      margin: 5px;
+      border-radius: 8px;
+    }
+
+    .sent {
+      background: #d9fdd3;
+      margin-left: auto;
+    }
+
+    .received {
+      background: white;
+      margin-right: auto;
+    }
+
+    .time {
+      font-size: 10px;
+      text-align: right;
+      margin-top: 3px;
+    }
+
+    .input-area {
+      display: flex;
+      padding: 10px;
+      background: #202c33;
+    }
+
+    textarea {
+      flex: 1;
+      padding: 10px;
+      border-radius: 5px;
+      border: none;
+    }
+
+    button {
+      margin-left: 10px;
+      padding: 10px;
+      background: #00a884;
+      border: none;
+      color: white;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    #auth {
+      padding: 30px;
+      color: white;
+    }
+
+    input {
+      padding: 10px;
+      margin: 5px 0;
+      width: 250px;
+    }
+  </style>
+</head>
+
+<body>
+
+<!-- AUTH -->
+<div id="auth">
+  <h2>Login / Signup</h2>
+  <input id="name" placeholder="Name"><br>
+  <input id="email" placeholder="Email"><br>
+  <input id="password" type="password" placeholder="Password"><br>
+
+  <button onclick="signup()">Signup</button>
+  <button onclick="login()">Login</button>
+</div>
+
+<!-- APP -->
+<div id="app" class="container" style="display:none;">
+
+  <div class="sidebar">
+    <div class="sidebar-header">Chats</div>
+    <div id="users" class="users"></div>
+  </div>
+
+  <div class="chat-area">
+    <div id="header" class="chat-header">Select user</div>
+    <div id="chat" class="messages"></div>
+
+    <div class="input-area">
+      <textarea id="msg" placeholder="Type message"></textarea>
+      <button onclick="send()">Send</button>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>
