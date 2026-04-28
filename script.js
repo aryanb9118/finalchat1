@@ -4,49 +4,44 @@ let myId = null;
 let myName = null;
 let currentReceiver = null;
 
-const BASE = "https://finalchat-backend.onrender.com"; // 🔥 YOUR BACKEND URL
+const BASE = "https://finalchat-backend.onrender.com";
 
 const chats = {};
-let usersMap = {};
 
 const chat = document.getElementById("chat");
 const usersDiv = document.getElementById("users");
 const input = document.getElementById("msg");
 const header = document.getElementById("header");
 
-// -------- SIGNUP --------
+// SIGNUP
 async function signup() {
   const res = await fetch(`${BASE}/signup`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {"Content-Type":"application/json"},
     body: JSON.stringify({
-      name: document.getElementById("name").value,
-      email: document.getElementById("email").value,
-      password: document.getElementById("password").value
+      name: name.value,
+      email: email.value,
+      password: password.value
     })
   });
 
   const data = await res.json();
-  alert(data.msg || "Signup done");
+  alert(data.msg);
 }
 
-// -------- LOGIN --------
+// LOGIN
 async function login() {
   const res = await fetch(`${BASE}/login`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {"Content-Type":"application/json"},
     body: JSON.stringify({
-      email: document.getElementById("email").value,
-      password: document.getElementById("password").value
+      email: email.value,
+      password: password.value
     })
   });
 
   const data = await res.json();
-
-  if (!res.ok) {
-    alert(data.msg || "Login failed");
-    return;
-  }
+  if (!res.ok) return alert(data.msg);
 
   myName = data.name;
   myId = data.userId;
@@ -55,16 +50,16 @@ async function login() {
 
   socket = io(BASE, {
     auth: { token: data.token },
-    transports: ["websocket"]
+    transports: ["websocket", "polling"]
   });
 
   setupSocket();
 
-  document.getElementById("auth").style.display = "none";
-  document.getElementById("app").style.display = "flex";
+  auth.style.display = "none";
+  app.style.display = "flex";
 }
 
-// -------- SOCKET --------
+// SOCKET
 function setupSocket() {
 
   socket.on("connect", () => {
@@ -72,7 +67,6 @@ function setupSocket() {
   });
 
   socket.on("userList", (users) => {
-    usersMap = users;
     usersDiv.innerHTML = "";
 
     for (let id in users) {
@@ -83,7 +77,7 @@ function setupSocket() {
 
       const avatar = document.createElement("div");
       avatar.className = "avatar";
-      avatar.innerText = users[id].name[0].toUpperCase();
+      avatar.innerText = (users[id].name || "U")[0].toUpperCase();
 
       const nameDiv = document.createElement("div");
       nameDiv.innerText = users[id].name;
@@ -95,7 +89,6 @@ function setupSocket() {
         currentReceiver = id;
         header.innerText = users[id].name;
         chat.innerHTML = "";
-
         (chats[id] || []).forEach(renderMessage);
       };
 
@@ -108,39 +101,33 @@ function setupSocket() {
   });
 }
 
-// -------- SEND --------
+// SEND
 function send() {
   if (!input.value.trim() || !currentReceiver) return;
 
-  const message = {
+  const msg = {
     id: Date.now(),
     senderId: myId,
     receiverId: currentReceiver,
     text: input.value,
-    time: new Date().toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit"
-    })
+    time: new Date().toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"})
   };
 
-  socket.emit("sendMessage", message);
+  socket.emit("sendMessage", msg);
   input.value = "";
 }
 
-// -------- STORE --------
+// STORE
 function addMessage(m) {
-  const other =
-    m.senderId === myId ? m.receiverId : m.senderId;
+  const other = m.senderId === myId ? m.receiverId : m.senderId;
 
   if (!chats[other]) chats[other] = [];
   chats[other].push(m);
 
-  if (currentReceiver === other) {
-    renderMessage(m);
-  }
+  if (currentReceiver === other) renderMessage(m);
 }
 
-// -------- RENDER --------
+// RENDER
 function renderMessage(m) {
   if (document.getElementById(m.id)) return;
 
@@ -157,7 +144,7 @@ function renderMessage(m) {
   chat.scrollTop = chat.scrollHeight;
 }
 
-// ENTER SEND
+// ENTER
 input.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault();

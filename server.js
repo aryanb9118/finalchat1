@@ -12,139 +12,103 @@ app.use(express.json());
 
 const server = http.createServer(app);
 
-// ✅ SOCKET CORS FIX
 const io = new Server(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  }
+  cors: { origin: "*", methods: ["GET","POST"] }
 });
 
-// ================= DATABASE =================
+// ROUTE TEST
+app.get("/", (req, res) => {
+  res.send("Server running");
+});
+
+// DB
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("MongoDB Connected"))
-  .catch(err => console.log("DB Error:", err));
+  .then(()=>console.log("MongoDB Connected"))
+  .catch(err=>console.log(err));
 
-// ================= MODEL =================
+// MODEL
 const User = mongoose.model("User", {
-  email: { type: String, required: true },
-  password: { type: String, required: true },
-  name: { type: String, required: true }
+  email:String,
+  password:String,
+  name:String
 });
 
-// ================= VARIABLES =================
 const users = {};
-const SECRET = process.env.JWT_SECRET || "fallback_secret";
+const SECRET = process.env.JWT_SECRET;
 
-// ================= SIGNUP =================
-app.post("/signup", async (req, res) => {
-  try {
-    const { email, password, name } = req.body;
+// SIGNUP
+app.post("/signup", async (req,res)=>{
+  const {email,password,name}=req.body;
 
-    if (!email || !password || !name) {
-      return res.status(400).json({ msg: "All fields required" });
-    }
+  const exists = await User.findOne({email});
+  if (exists) return res.json({msg:"Email exists"});
 
-    const exists = await User.findOne({ email });
-    if (exists) {
-      return res.status(400).json({ msg: "Email already exists" });
-    }
+  const hash = await bcrypt.hash(password,10);
+  await new User({email,password:hash,name}).save();
 
-    const hash = await bcrypt.hash(password, 10);
-
-    await new User({ email, password: hash, name }).save();
-
-    res.json({ msg: "User created" });
-
-  } catch (err) {
-    console.log(err);
-    res.status(500).json({ msg: "Server error" });
-  }
+  res.json({msg:"User created"});
 });
 
-// ================= LOGIN =================
-app.post("/login", async (req, res) => {
-  try {
-    const { email, password } = req.body;
+// LOGIN
+app.post("/login", async (req,res)=>{
+  const {email,password}=req.body;
 
-    const user = await User.findOne({ email });
-    if (!user) return res.status(400).json({ msg: "User not found" });
+  const user = await User.findOne({email});
+  if (!user) return res.json({msg:"User not found"});
 
-    const ok = await bcrypt.compare(password, user.password);
-    if (!ok) return res.status(400).json({ msg: "Wrong password" });
+  const ok = await bcrypt.compare(password,user.password);
+  if (!ok) return res.json({msg:"Wrong password"});
 
-    const token = jwt.sign(
-      { id: user._id, name: user.name || user.email },
-      SECRET
-    );
+  const token = jwt.sign(
+    {id:user._id,name:user.name},
+    SECRET
+  );
 
-    res.json({
-      token,
-      name: user.name || user.email,
-      userId: user._id
-    });
-
-  } catch (err) {
-    console.log(err);
-    res.status(500).json({ msg: "Server error" });
-  }
+  res.json({
+    token,
+    name:user.name,
+    userId:user._id
+  });
 });
 
-// ================= SOCKET AUTH =================
-io.use((socket, next) => {
-  const token = socket.handshake.auth?.token;
-
-  if (!token) return next(new Error("No token"));
-
-  try {
-    const decoded = jwt.verify(token, SECRET);
+// AUTH
+io.use((socket,next)=>{
+  try{
+    const decoded = jwt.verify(socket.handshake.auth.token, SECRET);
     socket.user = decoded;
     next();
-  } catch {
-    next(new Error("Invalid token"));
+  }catch{
+    next(new Error("Auth error"));
   }
 });
 
-// ================= SOCKET =================
-io.on("connection", (socket) => {
-  const userId = socket.user.id;
-  const name = socket.user.name;
+// SOCKET
+io.on("connection",(socket)=>{
+  const {id,name}=socket.user;
 
-  console.log("Connected:", name);
+  users[id]={socketId:socket.id,name};
 
-  users[userId] = { socketId: socket.id, name };
-  socket.userId = userId;
+  io.emit("userList",users);
 
-  io.emit("userList", users);
-
-  socket.on("getUsers", () => {
-    socket.emit("userList", users);
+  socket.on("getUsers",()=>{
+    socket.emit("userList",users);
   });
 
-  socket.on("sendMessage", (data) => {
-    const receiver = users[data.receiverId];
+  socket.on("sendMessage",(data)=>{
+    const receiver=users[data.receiverId];
 
-    io.to(socket.id).emit("receiveMessage", data);
+    io.to(socket.id).emit("receiveMessage",data);
 
-    if (receiver) {
-      io.to(receiver.socketId).emit("receiveMessage", data);
-
-      io.to(socket.id).emit("messageStatus", {
-        id: data.id,
-        status: "delivered"
-      });
+    if(receiver){
+      io.to(receiver.socketId).emit("receiveMessage",data);
     }
   });
 
-  socket.on("disconnect", () => {
-    delete users[socket.userId];
-    io.emit("userList", users);
+  socket.on("disconnect",()=>{
+    delete users[socket.user.id];
+    io.emit("userList",users);
   });
 });
 
-// ================= START =================
 const PORT = process.env.PORT || 5000;
-
-server.listen(PORT, () => {
-  console.log("Server running on port " + PORT);
-});
+server.listen(PORT, ()=>console.log("Server running on "+PORT));
